@@ -9,6 +9,7 @@ from kapruka_client import (
     list_kapruka_tools,
     search_products,
 )
+from shopping_agent import handle_chat
 
 app = FastAPI(title="Kapruka Companion API")
 
@@ -96,11 +97,12 @@ async def api_delivery_check(request: DeliveryCheckRequest):
 
 
 @app.post("/api/chat")
-def chat(request: ChatRequest):
-    return {
-        "reply": (
-            "Ayubowan! I am Kapruka Companion. "
-            "Tell me what you want to buy, who it is for, your budget, and delivery city."
-        ),
-        "received": request.message,
-    }
+async def chat(request: ChatRequest):
+    try:
+        response = await handle_chat(request.message)
+        return {
+            **response,
+            "received": request.message,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc

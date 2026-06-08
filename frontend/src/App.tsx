@@ -9,12 +9,23 @@ type Message = {
 }
 
 type Product = {
-  id: number
+  id: string
   name: string
   category: string
   price: string
-  image: string
+  image: string | null
   note: string
+  url?: string
+  in_stock?: boolean
+  stock_level?: string
+}
+
+type ChatResponse = {
+  reply: string
+  products?: Product[]
+  search_query?: string
+  city?: string | null
+  delivery_date?: string | null
 }
 
 const initialMessages: Message[] = [
@@ -28,7 +39,7 @@ const initialMessages: Message[] = [
 
 const featuredProducts: Product[] = [
   {
-    id: 1,
+    id: 'mock-flowers',
     name: 'Fresh flower apology bundle',
     category: 'Gift mode',
     price: 'From Rs. 6,500',
@@ -37,7 +48,7 @@ const featuredProducts: Product[] = [
     note: 'Good when the message matters more than the item.',
   },
   {
-    id: 2,
+    id: 'mock-grocery',
     name: 'Weekly grocery top-up',
     category: 'Everyday shopping',
     price: 'From Rs. 9,000',
@@ -46,7 +57,7 @@ const featuredProducts: Product[] = [
     note: 'Built for customers buying for themselves.',
   },
   {
-    id: 3,
+    id: 'mock-electronics',
     name: 'Smart home essentials',
     category: 'Electronics',
     price: 'From Rs. 12,500',
@@ -67,6 +78,8 @@ function App() {
   const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [products, setProducts] = useState<Product[]>(featuredProducts)
+  const [searchContext, setSearchContext] = useState('Starter examples')
 
   const cartTotal = useMemo(() => 'Rs. 16,400', [])
 
@@ -97,7 +110,17 @@ function App() {
         throw new Error('Backend request failed')
       }
 
-      const data = await response.json()
+      const data = (await response.json()) as ChatResponse
+
+      if (data.products?.length) {
+        setProducts(data.products)
+        setSearchContext(
+          data.search_query
+            ? `Real Kapruka results for "${data.search_query}"`
+            : 'Real Kapruka results',
+        )
+      }
+
       setMessages((current) => [
         ...current,
         {
@@ -220,17 +243,27 @@ function App() {
             <div className="section-title">
               <p className="eyebrow">Recommended</p>
               <h2>Visual picks</h2>
+              <span>{searchContext}</span>
             </div>
 
             <div className="product-list">
-              {featuredProducts.map((product) => (
+              {products.map((product) => (
                 <article className="product-card" key={product.id}>
-                  <img src={product.image} alt={product.name} />
+                  {product.image ? (
+                    <img src={product.image} alt={product.name} />
+                  ) : (
+                    <div className="image-fallback">KC</div>
+                  )}
                   <div>
                     <span>{product.category}</span>
                     <h3>{product.name}</h3>
                     <p>{product.note}</p>
                     <strong>{product.price}</strong>
+                    {product.url && (
+                      <a href={product.url} target="_blank" rel="noreferrer">
+                        View product
+                      </a>
+                    )}
                   </div>
                 </article>
               ))}
