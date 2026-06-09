@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from kapruka_client import check_delivery, list_delivery_cities, search_products
+from safety import assess_safety
 
 
 ASSISTANT_NAME = "Kavi"
@@ -264,6 +265,26 @@ def _reply_for_intent(
 
 
 async def handle_chat(message: str) -> dict[str, Any]:
+    safety = assess_safety(message)
+    if safety:
+        return {
+            "assistant_name": ASSISTANT_NAME,
+            "reply": safety.reply,
+            "products": [],
+            "intent": safety.intent,
+            "intent_label": "Care mode",
+            "tone": "urgent, supportive",
+            "friend_note": safety.friend_note,
+            "next_actions": safety.next_actions,
+            "resources": safety.resources,
+            "safety_level": safety.level,
+            "suppress_products": safety.suppress_products,
+            "search_query": None,
+            "city": None,
+            "delivery_date": None,
+            "delivery": None,
+        }
+
     query, intent = _infer_search_query(message)
     budget = _extract_budget(message)
     city_query = _extract_city(message)

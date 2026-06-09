@@ -163,6 +163,12 @@ h3 {
   font-weight: 800;
 }
 
+.care-pill {
+  border-color: #fecaca;
+  background: #fff1f2;
+  color: #be123c;
+}
+
 .message-list {
   display: flex;
   min-height: 0;
@@ -272,7 +278,8 @@ h3 {
 }
 
 .panel-section,
-.plan-card {
+.plan-card,
+.care-card {
   display: grid;
   gap: 16px;
 }
@@ -375,6 +382,42 @@ h3 {
 
 .product-card a:hover {
   text-decoration: underline;
+}
+
+.care-card {
+  padding: 18px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fff1f2;
+}
+
+.resource-list {
+  display: grid;
+  gap: 10px;
+}
+
+.resource-card {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.resource-card strong {
+  color: #be123c;
+  font-size: 18px;
+}
+
+.resource-card h3 {
+  color: #17202a;
+}
+
+.resource-card p {
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .plan-card {

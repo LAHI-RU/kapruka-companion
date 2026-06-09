@@ -31,6 +31,9 @@ type ChatResponse = {
   tone?: string
   friend_note?: string
   next_actions?: string[]
+  resources?: CareResource[]
+  safety_level?: string
+  suppress_products?: boolean
 }
 
 type AgentState = {
@@ -39,6 +42,15 @@ type AgentState = {
   tone: string
   friendNote: string
   nextActions: string[]
+  resources: CareResource[]
+  safetyLevel: string | null
+  suppressProducts: boolean
+}
+
+type CareResource = {
+  name: string
+  detail: string
+  contact: string
 }
 
 const defaultAgentState: AgentState = {
@@ -52,6 +64,9 @@ const defaultAgentState: AgentState = {
     'Add city, budget, and date',
     'Compare real Kapruka picks',
   ],
+  resources: [],
+  safetyLevel: null,
+  suppressProducts: false,
 }
 
 const initialMessages: Message[] = [
@@ -157,9 +172,15 @@ function App() {
         nextActions: data.next_actions?.length
           ? data.next_actions
           : defaultAgentState.nextActions,
+        resources: data.resources || [],
+        safetyLevel: data.safety_level || null,
+        suppressProducts: Boolean(data.suppress_products),
       })
 
-      if (data.products?.length) {
+      if (data.suppress_products) {
+        setProducts([])
+        setSearchContext('Shopping paused for care mode')
+      } else if (data.products?.length) {
         setProducts(data.products)
         setSearchContext(
           data.search_query
@@ -242,7 +263,13 @@ function App() {
               <p className="eyebrow">Ask like you text a friend</p>
               <h2>What are we solving today?</h2>
             </div>
-            <span className="header-pill">{productSummary}</span>
+            <span
+              className={`header-pill ${
+                agentState.safetyLevel ? 'care-pill' : ''
+              }`}
+            >
+              {agentState.safetyLevel ? 'Care mode active' : productSummary}
+            </span>
           </div>
 
           <div className="message-list">
@@ -290,43 +317,62 @@ function App() {
         </section>
 
         <aside className="shop-panel" aria-label="Recommendations and plan">
-          <div className="panel-section">
-            <div className="section-title">
-              <p className="eyebrow">Kavi recommends</p>
-              <h2>Live product picks</h2>
-              <span>{searchContext}</span>
+          {agentState.suppressProducts ? (
+            <div className="care-card">
+              <div className="section-title">
+                <p className="eyebrow">Care resources</p>
+                <h2>Get support now</h2>
+                <span>Shopping is paused for this conversation.</span>
+              </div>
+              <div className="resource-list">
+                {agentState.resources.map((resource) => (
+                  <article className="resource-card" key={resource.name}>
+                    <strong>{resource.contact}</strong>
+                    <h3>{resource.name}</h3>
+                    <p>{resource.detail}</p>
+                  </article>
+                ))}
+              </div>
             </div>
+          ) : (
+            <div className="panel-section">
+              <div className="section-title">
+                <p className="eyebrow">Kavi recommends</p>
+                <h2>Live product picks</h2>
+                <span>{searchContext}</span>
+              </div>
 
-            <div className="product-list">
-              {products.map((product) => (
-                <article className="product-card" key={product.id}>
-                  {product.image ? (
-                    <img src={product.image} alt={product.name} />
-                  ) : (
-                    <div className="image-fallback">KV</div>
-                  )}
-                  <div>
-                    <span>{product.category}</span>
-                    <h3>{product.name}</h3>
-                    <p>{product.note}</p>
-                    <div className="product-footer">
-                      <strong>{product.price}</strong>
-                      {product.in_stock !== undefined && (
-                        <small>
-                          {product.in_stock ? 'In stock' : 'Check stock'}
-                        </small>
+              <div className="product-list">
+                {products.map((product) => (
+                  <article className="product-card" key={product.id}>
+                    {product.image ? (
+                      <img src={product.image} alt={product.name} />
+                    ) : (
+                      <div className="image-fallback">KV</div>
+                    )}
+                    <div>
+                      <span>{product.category}</span>
+                      <h3>{product.name}</h3>
+                      <p>{product.note}</p>
+                      <div className="product-footer">
+                        <strong>{product.price}</strong>
+                        {product.in_stock !== undefined && (
+                          <small>
+                            {product.in_stock ? 'In stock' : 'Check stock'}
+                          </small>
+                        )}
+                      </div>
+                      {product.url && (
+                        <a href={product.url} target="_blank" rel="noreferrer">
+                          View on Kapruka
+                        </a>
                       )}
                     </div>
-                    {product.url && (
-                      <a href={product.url} target="_blank" rel="noreferrer">
-                        View on Kapruka
-                      </a>
-                    )}
-                  </div>
-                </article>
-              ))}
+                  </article>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="plan-card">
             <div className="section-title">
@@ -339,7 +385,9 @@ function App() {
               ))}
             </ol>
             <button type="button" className="checkout-button">
-              Build checkout plan
+              {agentState.suppressProducts
+                ? 'Keep Kavi with me'
+                : 'Build checkout plan'}
             </button>
           </div>
         </aside>
