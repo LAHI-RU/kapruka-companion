@@ -21,11 +21,37 @@ type Product = {
 }
 
 type ChatResponse = {
+  assistant_name?: string
   reply: string
   products?: Product[]
   search_query?: string
   city?: string | null
   delivery_date?: string | null
+  intent_label?: string
+  tone?: string
+  friend_note?: string
+  next_actions?: string[]
+}
+
+type AgentState = {
+  assistantName: string
+  intentLabel: string
+  tone: string
+  friendNote: string
+  nextActions: string[]
+}
+
+const defaultAgentState: AgentState = {
+  assistantName: 'Kavi',
+  intentLabel: 'Close friend shopping',
+  tone: 'warm, practical, Sri Lankan',
+  friendNote:
+    'Kavi reads the situation first, then shops. The goal is useful advice plus real Kapruka products.',
+  nextActions: [
+    'Tell Kavi the item or situation',
+    'Add city, budget, and date',
+    'Compare real Kapruka picks',
+  ],
 }
 
 const initialMessages: Message[] = [
@@ -33,55 +59,66 @@ const initialMessages: Message[] = [
     id: 1,
     role: 'assistant',
     text:
-      'Ayubowan Lahiru. Tell me what you need, your city, budget, and when you want it delivered. I can help with groceries, gifts, electronics, flowers, cakes, fashion, and daily essentials.',
+      'Ayubowan, I am Kavi. Tell me what happened or what you need to buy. I will think like a close friend first, then help you pick the right Kapruka products.',
   },
 ]
 
-const featuredProducts: Product[] = [
+const starterProducts: Product[] = [
   {
-    id: 'mock-flowers',
-    name: 'Fresh flower apology bundle',
+    id: 'starter-flowers',
+    name: 'Relationship repair flower plan',
+    category: 'Friend mode',
+    price: 'Real prices after search',
+    image:
+      'https://images.unsplash.com/photo-1518709779341-56cf4535e94b?auto=format&fit=crop&w=700&q=80',
+    note: 'For apology, comfort, birthday, anniversary, and thoughtful conversations.',
+  },
+  {
+    id: 'starter-grocery',
+    name: 'Everyday essentials run',
+    category: 'Self shopping',
+    price: 'Real prices after search',
+    image:
+      'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=700&q=80',
+    note: 'For groceries, home needs, daily essentials, and practical multi-item carts.',
+  },
+  {
+    id: 'starter-cake',
+    name: 'Birthday rescue plan',
     category: 'Gift mode',
-    price: 'From Rs. 6,500',
+    price: 'Real prices after search',
     image:
-      'https://images.unsplash.com/photo-1518709779341-56cf4535e94b?auto=format&fit=crop&w=600&q=80',
-    note: 'Good when the message matters more than the item.',
-  },
-  {
-    id: 'mock-grocery',
-    name: 'Weekly grocery top-up',
-    category: 'Everyday shopping',
-    price: 'From Rs. 9,000',
-    image:
-      'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80',
-    note: 'Built for customers buying for themselves.',
-  },
-  {
-    id: 'mock-electronics',
-    name: 'Smart home essentials',
-    category: 'Electronics',
-    price: 'From Rs. 12,500',
-    image:
-      'https://images.unsplash.com/photo-1558002038-1055907df827?auto=format&fit=crop&w=600&q=80',
-    note: 'Useful products, not only gift recommendations.',
+      'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=700&q=80',
+    note: 'For last-minute cakes, flowers, notes, and delivery timing.',
   },
 ]
 
 const quickPrompts = [
+  'I need to break up with my girl, help me',
+  'I broke up and need flowers today in Colombo',
   'I need groceries delivered to Colombo tomorrow',
-  'Find a birthday gift under Rs. 10,000',
-  'Mage amma ta gift ekak one',
-  'I broke up and need flowers today',
+  'Find a birthday gift under Rs. 10000 to Kandy tomorrow',
 ]
 
 function App() {
   const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [products, setProducts] = useState<Product[]>(featuredProducts)
-  const [searchContext, setSearchContext] = useState('Starter examples')
+  const [products, setProducts] = useState<Product[]>(starterProducts)
+  const [searchContext, setSearchContext] = useState('Ready to search Kapruka')
+  const [agentState, setAgentState] = useState<AgentState>(defaultAgentState)
 
-  const cartTotal = useMemo(() => 'Rs. 16,400', [])
+  const productSummary = useMemo(() => {
+    const realProductCount = products.filter(
+      (product) => !product.id.startsWith('starter-'),
+    ).length
+
+    if (realProductCount === 0) {
+      return 'Starter preview'
+    }
+
+    return `${realProductCount} live Kapruka picks`
+  }, [products])
 
   async function sendMessage(messageText: string) {
     const trimmed = messageText.trim()
@@ -112,12 +149,22 @@ function App() {
 
       const data = (await response.json()) as ChatResponse
 
+      setAgentState({
+        assistantName: data.assistant_name || 'Kavi',
+        intentLabel: data.intent_label || 'Smart shopping',
+        tone: data.tone || 'close friend',
+        friendNote: data.friend_note || defaultAgentState.friendNote,
+        nextActions: data.next_actions?.length
+          ? data.next_actions
+          : defaultAgentState.nextActions,
+      })
+
       if (data.products?.length) {
         setProducts(data.products)
         setSearchContext(
           data.search_query
-            ? `Real Kapruka results for "${data.search_query}"`
-            : 'Real Kapruka results',
+            ? `Live Kapruka results for "${data.search_query}"`
+            : 'Live Kapruka results',
         )
       }
 
@@ -136,7 +183,7 @@ function App() {
           id: Date.now() + 1,
           role: 'assistant',
           text:
-            'I could not reach the shopping backend. Start the FastAPI server on port 8000 and try again.',
+            'I could not reach the shopping backend. Restart FastAPI on port 8000 and I will continue from here.',
         },
       ])
     } finally {
@@ -151,40 +198,40 @@ function App() {
 
   return (
     <main className="app-shell">
-      <section className="workspace" aria-label="Kapruka Companion workspace">
-        <aside className="sidebar" aria-label="Shopping context">
+      <section className="workspace" aria-label="Kavi shopping workspace">
+        <aside className="sidebar" aria-label="Agent profile and context">
           <div className="brand-block">
-            <span className="brand-mark">KC</span>
+            <span className="brand-mark">KV</span>
             <div>
-              <p className="eyebrow">Kapruka Companion</p>
-              <h1>AI shopping concierge</h1>
+              <p className="eyebrow">Kapruka AI companion</p>
+              <h1>{agentState.assistantName}</h1>
             </div>
           </div>
 
           <div className="status-panel">
             <div>
               <span className="status-dot"></span>
-              <strong>Demo mode</strong>
+              <strong>{agentState.intentLabel}</strong>
             </div>
-            <p>Frontend is connected to your Python FastAPI backend.</p>
+            <p>{agentState.friendNote}</p>
           </div>
 
           <div className="context-grid">
             <div>
-              <span>City</span>
-              <strong>Colombo</strong>
+              <span>Tone</span>
+              <strong>{agentState.tone}</strong>
             </div>
             <div>
-              <span>Delivery</span>
-              <strong>Tomorrow</strong>
+              <span>Catalog</span>
+              <strong>Kapruka MCP live</strong>
             </div>
             <div>
-              <span>Mode</span>
-              <strong>Self + Gift</strong>
+              <span>Modes</span>
+              <strong>Self, gift, care</strong>
             </div>
             <div>
               <span>Language</span>
-              <strong>EN / SI / Tanglish</strong>
+              <strong>EN / Sinhala / Tanglish</strong>
             </div>
           </div>
         </aside>
@@ -192,23 +239,27 @@ function App() {
         <section className="conversation-panel" aria-label="Shopping chat">
           <div className="chat-header">
             <div>
-              <p className="eyebrow">Live assistant</p>
-              <h2>Tell me what you need to buy</h2>
+              <p className="eyebrow">Ask like you text a friend</p>
+              <h2>What are we solving today?</h2>
             </div>
-            <span className="header-pill">MCP-ready</span>
+            <span className="header-pill">{productSummary}</span>
           </div>
 
           <div className="message-list">
             {messages.map((message) => (
               <article className={`message ${message.role}`} key={message.id}>
-                <span>{message.role === 'assistant' ? 'AI' : 'You'}</span>
+                <span>
+                  {message.role === 'assistant'
+                    ? agentState.assistantName
+                    : 'You'}
+                </span>
                 <p>{message.text}</p>
               </article>
             ))}
             {isLoading && (
               <article className="message assistant">
-                <span>AI</span>
-                <p>Checking the best path for you...</p>
+                <span>{agentState.assistantName}</span>
+                <p>Reading the situation, checking Kapruka, and thinking through the best move...</p>
               </article>
             )}
           </div>
@@ -228,7 +279,7 @@ function App() {
           <form className="composer" onSubmit={handleSubmit}>
             <input
               aria-label="Message"
-              placeholder="Example: Find groceries for Rs. 8,000 delivered to Kandy this Friday"
+              placeholder="Example: I need to fix a fight with my girlfriend and send flowers today in Colombo"
               value={input}
               onChange={(event) => setInput(event.target.value)}
             />
@@ -238,11 +289,11 @@ function App() {
           </form>
         </section>
 
-        <aside className="shop-panel" aria-label="Products and cart">
+        <aside className="shop-panel" aria-label="Recommendations and plan">
           <div className="panel-section">
             <div className="section-title">
-              <p className="eyebrow">Recommended</p>
-              <h2>Visual picks</h2>
+              <p className="eyebrow">Kavi recommends</p>
+              <h2>Live product picks</h2>
               <span>{searchContext}</span>
             </div>
 
@@ -252,16 +303,23 @@ function App() {
                   {product.image ? (
                     <img src={product.image} alt={product.name} />
                   ) : (
-                    <div className="image-fallback">KC</div>
+                    <div className="image-fallback">KV</div>
                   )}
                   <div>
                     <span>{product.category}</span>
                     <h3>{product.name}</h3>
                     <p>{product.note}</p>
-                    <strong>{product.price}</strong>
+                    <div className="product-footer">
+                      <strong>{product.price}</strong>
+                      {product.in_stock !== undefined && (
+                        <small>
+                          {product.in_stock ? 'In stock' : 'Check stock'}
+                        </small>
+                      )}
+                    </div>
                     {product.url && (
                       <a href={product.url} target="_blank" rel="noreferrer">
-                        View product
+                        View on Kapruka
                       </a>
                     )}
                   </div>
@@ -270,31 +328,18 @@ function App() {
             </div>
           </div>
 
-          <div className="cart-card">
+          <div className="plan-card">
             <div className="section-title">
-              <p className="eyebrow">Draft cart</p>
-              <h2>3 items</h2>
+              <p className="eyebrow">Next best moves</p>
+              <h2>{agentState.intentLabel}</h2>
             </div>
-            <ul>
-              <li>
-                <span>Flowers</span>
-                <strong>Rs. 6,500</strong>
-              </li>
-              <li>
-                <span>Note card</span>
-                <strong>Rs. 900</strong>
-              </li>
-              <li>
-                <span>Grocery bundle</span>
-                <strong>Rs. 9,000</strong>
-              </li>
-            </ul>
-            <div className="cart-total">
-              <span>Total</span>
-              <strong>{cartTotal}</strong>
-            </div>
+            <ol>
+              {agentState.nextActions.map((action) => (
+                <li key={action}>{action}</li>
+              ))}
+            </ol>
             <button type="button" className="checkout-button">
-              Prepare checkout
+              Build checkout plan
             </button>
           </div>
         </aside>

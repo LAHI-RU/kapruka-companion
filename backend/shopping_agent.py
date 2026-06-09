@@ -5,6 +5,7 @@ from typing import Any
 from kapruka_client import check_delivery, list_delivery_cities, search_products
 
 
+ASSISTANT_NAME = "Kavi"
 LK_TZ = timezone(timedelta(hours=5, minutes=30))
 
 CITY_KEYWORDS = [
@@ -22,9 +23,9 @@ CITY_KEYWORDS = [
 
 def _extract_budget(message: str) -> float | None:
     patterns = [
-        r"(?:rs\.?|lkr|රු)\s*([0-9][0-9,\.]*)",
+        r"(?:rs\.?|lkr)\s*([0-9][0-9,\.]*)",
         r"(?:under|below|less than|max|maximum)\s*([0-9][0-9,\.]*)",
-        r"([0-9][0-9,\.]*)\s*(?:rs\.?|lkr|රු)",
+        r"([0-9][0-9,\.]*)\s*(?:rs\.?|lkr)",
     ]
 
     for pattern in patterns:
@@ -60,7 +61,18 @@ def _extract_delivery_date(message: str) -> str | None:
 def _infer_search_query(message: str) -> tuple[str, str]:
     lower_message = message.lower()
 
-    if any(word in lower_message for word in ["break", "broke up", "sorry", "apology"]):
+    relationship_phrases = [
+        "break up",
+        "broke up",
+        "leave my girl",
+        "leave my girlfriend",
+        "end relationship",
+        "dump her",
+    ]
+    if any(phrase in lower_message for phrase in relationship_phrases):
+        return "red roses flowers", "relationship_care"
+
+    if any(word in lower_message for word in ["sorry", "apology", "forgive"]):
         return "red roses flowers", "apology"
     if any(word in lower_message for word in ["flower", "flowers", "rose", "roses"]):
         return "roses flowers", "gift"
@@ -115,6 +127,86 @@ def _normalise_products(payload: Any) -> list[dict[str, Any]]:
     return products
 
 
+def _intent_label(intent: str) -> str:
+    labels = {
+        "relationship_care": "Close friend mode",
+        "apology": "Apology gift plan",
+        "everyday": "Everyday shopping",
+        "gift": "Gift concierge",
+        "general": "Smart shopping",
+    }
+    return labels.get(intent, "Smart shopping")
+
+
+def _friend_note(intent: str) -> str:
+    if intent == "relationship_care":
+        return (
+            "Kavi is not just trying to sell flowers. The better move is to cool down, "
+            "talk properly, and use the gift only as a gentle opener."
+        )
+
+    if intent == "everyday":
+        return "Kavi is optimizing for useful items, stock, and delivery instead of only gift-style recommendations."
+
+    if intent in ["gift", "apology"]:
+        return "Kavi is balancing emotional tone, price, and delivery practicality."
+
+    return "Kavi is reading the situation first, then shopping."
+
+
+def _next_actions(intent: str, city: str | None, delivery_date: str | None) -> list[str]:
+    if intent == "relationship_care":
+        return [
+            "Do not rush the breakup decision",
+            "Talk calmly before sending anything",
+            "Pick simple flowers with a sincere note",
+        ]
+
+    if intent == "apology":
+        return [
+            "Choose one meaningful item",
+            "Keep the message short and honest",
+            "Check delivery timing before checkout",
+        ]
+
+    if intent == "everyday":
+        return [
+            "Build a multi-item cart",
+            "Confirm delivery city",
+            "Compare essentials by price and stock",
+        ]
+
+    actions = ["Compare the top picks", "Confirm budget", "Add delivery details"]
+    if city:
+        actions.append(f"Use {city} as delivery city")
+    if delivery_date:
+        actions.append(f"Target delivery date {delivery_date}")
+
+    return actions[:3]
+
+
+def _delivery_sentence(
+    delivery: dict[str, Any] | None,
+    city_text: str,
+) -> str:
+    if not delivery:
+        return ""
+
+    if delivery.get("available"):
+        return (
+            f" Delivery to {delivery.get('city', city_text)} is available on "
+            f"{delivery.get('checked_date')} with a flat fee of Rs. {delivery.get('rate')}."
+        )
+
+    if delivery.get("next_available_date"):
+        return (
+            f" That date may not work for {delivery.get('city', city_text)}; "
+            f"next available date is {delivery.get('next_available_date')}."
+        )
+
+    return ""
+
+
 def _reply_for_intent(
     intent: str,
     products: list[dict[str, Any]],
@@ -128,27 +220,25 @@ def _reply_for_intent(
     if not products:
         return (
             f"I searched Kapruka but did not find a strong match{budget_text}. "
-            "Try a more specific item name, budget, or category and I will refine it."
+            "Give me a clearer item, city, or budget and I will refine it."
         )
 
     top = products[0]
-    delivery_text = ""
-    if delivery:
-        if delivery.get("available"):
-            delivery_text = (
-                f" Delivery to {delivery.get('city', city_text)} is available on "
-                f"{delivery.get('checked_date')} with a flat fee of Rs. {delivery.get('rate')}."
-            )
-        elif delivery.get("next_available_date"):
-            delivery_text = (
-                f" That date may not work for {delivery.get('city', city_text)}; "
-                f"next available date is {delivery.get('next_available_date')}."
-            )
+    delivery_text = _delivery_sentence(delivery, city_text)
+
+    if intent == "relationship_care":
+        return (
+            "Machan, do not do it right now. Do not decide to break up while emotions are high. "
+            "Talk to her first, listen properly, and try to solve the real problem before doing anything final. "
+            "If you still want to make a gentle move, keep it respectful: simple flowers, "
+            "a short note, no drama. "
+            f"I found {top['name']} at {top['price']} as a calm first option.{delivery_text}"
+        )
 
     if intent == "apology":
         return (
-            "Aiyo, that situation needs a careful touch. I would keep it simple: "
-            "fresh red roses, a short honest note, and no overdoing it. "
+            "Aiyo, that situation needs a careful touch. Keep it simple: fresh flowers, "
+            "a short honest note, and no overdoing it. "
             f"My first pick is {top['name']} at {top['price']}.{delivery_text}"
         )
 
@@ -202,20 +292,26 @@ async def handle_chat(message: str) -> dict[str, Any]:
             product_id=products[0]["id"] if products else None,
         )
 
+    safe_delivery = delivery if isinstance(delivery, dict) else None
     reply = _reply_for_intent(
         intent=intent,
         products=products,
         city=canonical_city,
-        delivery=delivery if isinstance(delivery, dict) else None,
+        delivery=safe_delivery,
         budget=budget,
     )
 
     return {
+        "assistant_name": ASSISTANT_NAME,
         "reply": reply,
         "products": products,
         "intent": intent,
+        "intent_label": _intent_label(intent),
+        "tone": "close friend",
+        "friend_note": _friend_note(intent),
+        "next_actions": _next_actions(intent, canonical_city, delivery_date),
         "search_query": query,
         "city": canonical_city,
         "delivery_date": delivery_date,
-        "delivery": delivery,
+        "delivery": safe_delivery,
     }
